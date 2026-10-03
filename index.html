@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpaceSnap AI</title>
+<style>
+:root{--bg:#0e1217;--card:#151b22;--line:#252f3a;--ink:#dfe5ea;--mute:#8b98a5;--acc:#ffb703}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1240px;margin:0 auto;padding:0 20px}
+header{padding:22px 0 8px}
+h1{margin:0;font-size:22px;font-weight:650}
+header p{margin:4px 0 0;color:var(--mute);max-width:640px}
+.flow{display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:38px;padding:18px 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px 16px;position:relative;min-width:0}
+.card:not(:last-child)::after{content:"\2192";position:absolute;right:-30px;top:50%;color:var(--mute);font-size:22px}
+h2{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:.09em;color:var(--mute);font-weight:600;display:flex;align-items:center;gap:8px}
+h2 b{background:var(--acc);color:#1a1200;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+.pv{background:#0a0d11;border:1px solid var(--line);border-radius:4px;height:230px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.pv img{max-width:100%;max-height:100%;display:block}
+#samples{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+#samples img{width:62px;height:62px;object-fit:cover;border-radius:4px;border:2px solid transparent;cursor:pointer}
+#samples img.on{border-color:var(--acc)}
+.up{display:block;margin-top:10px;border:1px dashed #3a4856;border-radius:4px;padding:12px;text-align:center;color:var(--mute);cursor:pointer;font-size:14px}
+.up:hover,.up.drag{border-color:var(--acc);color:var(--ink)}
+.hint{font-size:12.5px;color:var(--mute);margin:8px 0 0}
+canvas{width:100%;height:auto;display:block;border-radius:4px;background:#0a0d11}
+.ctl{display:flex;align-items:center;gap:10px;margin:10px 0;font-size:13px;color:var(--mute);flex-wrap:wrap}
+.ctl input{flex:1;min-width:90px;accent-color:var(--acc)}
+button{font:inherit;font-size:13px;background:transparent;color:var(--ink);border:1px solid #3a4856;border-radius:4px;padding:4px 10px;cursor:pointer}
+button:hover{border-color:var(--acc)}
+#leg{list-style:none;margin:0;padding:0}
+#leg li{display:grid;grid-template-columns:auto 14px 1fr auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line);font-size:14px}
+#leg i{width:14px;height:14px;border-radius:3px}
+#leg .pc{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--mute);font-size:13px}
+#leg input{accent-color:var(--acc)}
+#det{font-size:14px;padding:8px 10px;background:#0f151b;border-left:3px solid var(--acc);border-radius:3px}
+#exp{font-size:16px;margin:14px 0}
+#gl{margin:0;padding:0;list-style:none;font-size:13.5px;color:var(--mute)}
+#gl li{padding:4px 0 4px 18px;position:relative;border-top:1px solid var(--line)}
+#gl li i{position:absolute;left:0;top:11px;width:10px;height:10px;border-radius:2px}
+.small{font-size:12.5px;color:var(--mute)}
+footer{padding:12px 0 30px;font-size:12.5px;color:var(--mute)}
+@media(max-width:980px){.flow{grid-template-columns:1fr;gap:34px}.card:not(:last-child)::after{content:"\2193";right:auto;left:50%;top:auto;bottom:-31px}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>SpaceSnap AI</h1>
+  <p>Pick or upload a satellite or space image. The tool finds the main features, highlights them, and explains the scene in plain language.</p>
+</div></header>
+
+<div class="wrap"><div class="flow">
+  <section class="card">
+    <h2><b>1</b>Image</h2>
+    <div class="pv"><img id="pv" alt="Selected image" hidden><span class="small" id="pvh">No image yet</span></div>
+    <div id="samples"></div>
+    <label class="up" id="drop">Upload your own image (or drop it here)<input type="file" id="file" accept="image/*" hidden></label>
+    <p class="hint" id="hint"></p>
+  </section>
+
+  <section class="card">
+    <h2><b>2</b>Feature detection</h2>
+    <canvas id="cv" width="720" height="420"></canvas>
+    <div class="ctl">Overlay <input type="range" id="op" min="0" max="85" value="50"><button id="save">Save annotated image</button></div>
+    <ul id="leg"></ul>
+  </section>
+
+  <section class="card">
+    <h2><b>3</b>Explanation</h2>
+    <div id="det">Choose an image to begin.</div>
+    <p id="exp"></p>
+    <ul id="gl"></ul>
+    <p class="small" id="meta"></p>
+  </section>
+</div></div>
+
+<footer><div class="wrap">
+  How it works: the image is shrunk, its pixels are grouped by colour with k-means clustering, and each group is named from its hue and brightness. The explanation is built from what was found. It is a colour-based estimate and can mix up clouds with snow or ice. Images: NASA Visible Earth and Earth Observatory (public domain).
+</div></footer>
+
+<script>
+const $=id=>document.getElementById(id);
+const F={
+ cloud:{n:'Clouds / ice',c:[255,183,3],g:'Bright white patches: clouds, or snow and ice.'},
+ ocean:{n:'Ocean / water',c:[58,134,255],g:'Dark blue areas: sea, lakes or wide rivers.'},
+ veg:{n:'Forest / vegetation',c:[46,194,126],g:'Green areas: forest, grassland or farmland.'},
+ desert:{n:'Desert / dry land',c:[233,120,70],g:'Tan and orange ground: sand, desert or dry soil.'},
+ land:{n:'Land / terrain',c:[180,120,255],g:'Brown or mixed ground: hills, soil and rock.'},
+ rock:{n:'Gray rocky surface',c:[173,181,189],g:'Gray ground, like the Moon or Mars.'},
+ fire:{n:'Fire / hot spot',c:[255,0,84],g:'Bright red-orange spots: fires or lava.'},
+ lights:{n:'City lights',c:[252,238,33],g:'Bright yellow dots on a dark background: towns and cities.'},
+ space:{n:'Dark space / shadow',c:[110,120,150],g:'Very dark areas: space, the night side or deep shadow.'}
+};
+const SAMPLES=[
+ {f:'samples/blue-marble.jpg',t:'Earth (Blue Marble)'},
+ {f:'samples/hurricane.jpg',t:'Hurricane'},
+ {f:'samples/forest.jpg',t:'Forest and river'},
+ {f:'samples/ice.jpg',t:'Polar ice'}
+];
+
+function hsv(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0;
+ if(d){h=mx===r?((g-b)/d)%6:mx===g?(b-r)/d+2:(r-g)/d+4;h*=60;if(h<0)h+=360}return[h,mx?d/mx:0,mx]}
+
+// Name a colour cluster from its average colour
+function classify(c,share,dark){
+ const[h,s,v]=hsv(c[0],c[1],c[2]);
+ if(v<.14)return'space';
+ if(dark&&share<.05&&h>=20&&h<=65&&s>.45&&v>.75)return'lights';
+ if((h<18||h>340)&&s>.55&&v>.6)return'fire';
+ if(s<.2)return v>.62?'cloud':'rock';
+ if(h>=170&&h<=260)return(v>.78&&s<.45)?'cloud':'ocean';
+ if(h>=65&&h<170)return'veg';
+ if(h>=18&&h<65)return(v>.55&&s>.25)?'desert':'land';
+ return'land';
+}
+
+// px: RGBA array, W x H. Returns features and a per-pixel class grid.
+function analyzePixels(px,W,H){
+ const n=W*H,K=6;let mv=0;
+ for(let i=0;i<n;i++)mv+=Math.max(px[i*4],px[i*4+1],px[i*4+2])/255;mv/=n;
+ let seed=7;const rd=()=>{seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+ const pt=i=>[px[i*4],px[i*4+1],px[i*4+2]],cen=[pt((rd()*n)|0)];
+ while(cen.length<K){ // k-means++ seeding
+  let tot=0;const d=[];
+  for(let i=0;i<n;i+=5){let m=1e12;for(const q of cen){const a=px[i*4]-q[0],b=px[i*4+1]-q[1],e=px[i*4+2]-q[2];m=Math.min(m,a*a+b*b+e*e)}d.push(m);tot+=m}
+  let r=rd()*tot,j=0;while(j<d.length-1&&(r-=d[j])>0)j++;cen.push(pt(j*5));
+ }
+ const lab=new Uint8Array(n);
+ for(let it=0;it<12;it++){
+  const sum=cen.map(()=>[0,0,0,0]);
+  for(let i=0;i<n;i++){
+   const r=px[i*4],g=px[i*4+1],bl=px[i*4+2];let m=1e12,b=0;
+   for(let k=0;k<K;k++){const q=cen[k],a=r-q[0],e=g-q[1],f=bl-q[2],dd=a*a+e*e+f*f;if(dd<m){m=dd;b=k}}
+   lab[i]=b;const s=sum[b];s[0]+=r;s[1]+=g;s[2]+=bl;s[3]++;
+  }
+  sum.forEach((s,k)=>{if(s[3])cen[k]=[s[0]/s[3],s[1]/s[3],s[2]/s[3]]});
+ }
+ // clusters -> named classes (several clusters can share a name)
+ const cnt=new Array(K).fill(0);lab.forEach(l=>cnt[l]++);
+ const keys=[],kid=[];
+ for(let k=0;k<K;k++){if(!cnt[k]){kid.push(0);continue}const key=classify(cen[k],cnt[k]/n,mv<.35);let j=keys.indexOf(key);if(j<0){j=keys.length;keys.push(key)}kid.push(j)}
+ let g=Uint8Array.from(lab,l=>kid[l]);
+ // 3x3 majority filter, twice, to remove speckle
+ const c9=new Uint8Array(keys.length+1);
+ for(let pass=0;pass<2;pass++){
+  const o=new Uint8Array(n);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+   c9.fill(0);
+   for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=x+dx,yy=y+dy;if(xx>=0&&xx<W&&yy>=0&&yy<H)c9[g[yy*W+xx]]++}
+   let b=g[y*W+x];for(let k=0;k<keys.length;k++)if(c9[k]>c9[b])b=k;o[y*W+x]=b;
+  }
+  g=o;
+ }
+ const area=new Array(keys.length).fill(0);g.forEach(v=>area[v]++);
+ const feats=keys.map((key,i)=>({key,i,pct:Math.round(area[i]/n*1000)/10,on:true})).filter(f=>f.pct>=2.5).sort((a,b)=>b.pct-a.pct);
+ // label position = centre of the largest connected patch
+ const seen=new Uint8Array(n),st=new Int32Array(n);
+ feats.forEach(f=>{
+  let best=0,bx=0,by=0;
+  for(let s0=0;s0<n;s0++){
+   if(seen[s0]||g[s0]!==f.i)continue;
+   let sp=0,c=0,sx=0,sy=0;st[sp++]=s0;seen[s0]=1;
+   while(sp){
+    const q=st[--sp],qx=q%W,qy=(q/W)|0;c++;sx+=qx;sy+=qy;
+    if(qx>0&&!seen[q-1]&&g[q-1]===f.i){seen[q-1]=1;st[sp++]=q-1}
+    if(qx<W-1&&!seen[q+1]&&g[q+1]===f.i){seen[q+1]=1;st[sp++]=q+1}
+    if(qy>0&&!seen[q-W]&&g[q-W]===f.i){seen[q-W]=1;st[sp++]=q-W}
+    if(qy<H-1&&!seen[q+W]&&g[q+W]===f.i){seen[q+W]=1;st[sp++]=q+W}
+   }
+   if(c>best){best=c;bx=sx/c;by=sy/c}
+  }
+  f.cx=bx/W;f.cy=by/H;
+ });
+ return{W,H,g,feats};
+}
+
+function explain(feats){
+ const P=k=>(feats.find(f=>f.key===k)||{pct:0}).pct,nm={cloud:'clouds (or ice)',ocean:'ocean or water',veg:'forest or vegetation',desert:'dry land or desert',land:'land',rock:'gray rocky ground',fire:'possible fire or hot spots',lights:'city lights',space:'dark space or shadow'};
+ const top=feats.slice(0,3).map(f=>`${nm[f.key]} (${f.pct}%)`);
+ let s=feats.length?`This image is mostly ${top[0]}`+(top[1]?`, with ${top[1]}`:'')+(top[2]?` and ${top[2]}`:'')+'.':'No clear features were found.';
+ const x=[];
+ if(P('cloud')>=35&&P('ocean')>=15)x.push('A large cloud system sits over the ocean, which is typical of a developing weather system or storm.');
+ else if(P('cloud')>=8&&P('ocean')>=15)x.push('Clouds are scattered over the water.');
+ else if(P('cloud')>=30)x.push('The bright white areas are probably thick cloud, snow or ice.');
+ if(P('veg')>=20&&P('ocean')>=5)x.push('Green land next to water suggests forest or farmland near a coast or river.');
+ else if(P('veg')>=25)x.push('The large green areas point to dense forest or farmland.');
+ if(P('desert')>=20)x.push('The tan and orange areas look like dry land or desert.');
+ if(P('space')>=40)x.push('A lot of the picture is dark, as in space or the night side of a planet.');
+ if(P('rock')>=30)x.push('The gray tones look like bare rocky ground, as on the Moon or Mars.');
+ if(P('fire'))x.push('Bright red-orange spots may be fires or lava, so look at them closely.');
+ if(P('lights'))x.push('Bright yellow dots on a dark background may be city lights.');
+ return{det:'Detected: '+(feats.length?feats.map(f=>F[f.key].n).join(', '):'nothing clear')+'.',exp:[s,...x.slice(0,2)].join(' ')};
+}
+
+let R=null;
+function draw(){
+ if(!R)return;
+ const cv=$('cv'),ctx=cv.getContext('2d'),w=720,h=Math.round(w*R.H/R.W);
+ cv.width=w;cv.height=h;ctx.drawImage(R.img,0,0,w,h);
+ const id=new ImageData(R.W,R.H),on={};R.feats.forEach(f=>{if(f.on)on[f.i]=F[f.key].c});
+ for(let i=0;i<R.W*R.H;i++){const c=on[R.g[i]];if(c){id.data[i*4]=c[0];id.data[i*4+1]=c[1];id.data[i*4+2]=c[2];id.data[i*4+3]=255}}
+ const m=document.createElement('canvas');m.width=R.W;m.height=R.H;m.getContext('2d').putImageData(id,0,0);
+ ctx.globalAlpha=$('op').value/100;ctx.imageSmoothingQuality='high';ctx.drawImage(m,0,0,w,h);ctx.globalAlpha=1;
+ ctx.font='600 15px system-ui,sans-serif';ctx.textBaseline='middle';
+ const placed=[];
+ R.feats.filter(f=>f.on).forEach(f=>{
+  const t=`${F[f.key].n} ${f.pct}%`,tw=ctx.measureText(t).width+20,bh=24;
+  let x=Math.min(Math.max(f.cx*w-tw/2,4),w-tw-4),y=Math.min(Math.max(f.cy*h-bh/2,4),h-bh-4);
+  for(let k=0;k<8&&placed.some(p=>x<p[0]+p[2]&&x+tw>p[0]&&y<p[1]+p[3]&&y+bh>p[1]);k++)y=y+bh+4>h-bh?4:y+bh+4;
+  placed.push([x,y,tw,bh]);
+  ctx.fillStyle='rgba(14,18,23,.88)';ctx.fillRect(x,y,tw,bh);
+  ctx.fillStyle=`rgb(${F[f.key].c})`;ctx.fillRect(x,y,5,bh);
+  ctx.fillStyle='#fff';ctx.fillText(t,x+12,y+bh/2+1);
+ });
+}
+
+function show(img,title,ms){
+ $('pv').src=img.src;$('pv').hidden=false;$('pvh').hidden=true;
+ const W0=img.naturalWidth,H0=img.naturalHeight,sc=Math.min(1,240/Math.max(W0,H0)),W=Math.max(8,Math.round(W0*sc)),H=Math.max(8,Math.round(H0*sc));
+ const c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0,W,H);
+ let px;try{px=x.getImageData(0,0,W,H).data}catch(e){$('det').textContent='This image blocks pixel access. Download it and upload the file instead.';return}
+ const t0=performance.now(),r=analyzePixels(px,W,H);R={img,...r};
+ $('leg').innerHTML=R.feats.map((f,i)=>`<li><input type="checkbox" checked data-i="${i}" aria-label="Show ${F[f.key].n}"><i style="background:rgb(${F[f.key].c})"></i><span>${F[f.key].n}</span><span class="pc">${f.pct}%</span></li>`).join('');
+ $('leg').querySelectorAll('input').forEach(b=>b.onchange=()=>{R.feats[b.dataset.i].on=b.checked;draw()});
+ const e=explain(R.feats);
+ $('det').textContent=e.det;$('exp').textContent=e.exp;
+ $('gl').innerHTML=R.feats.map(f=>`<li><i style="background:rgb(${F[f.key].c})"></i><b style="color:var(--ink)">${F[f.key].n}:</b> ${F[f.key].g}</li>`).join('');
+ $('meta').textContent=(R.feats.length<3?'Fewer than 3 features were clearly found, so try an image with more variety. ':'')+'Automatic estimate from colours, so compare it with the real image. Analysed at '+W+'×'+H+' px in '+Math.round(performance.now()-t0)+' ms.';
+ draw();
+}
+function loadSrc(src,title,thumb){
+ const img=new Image();img.onload=()=>{document.querySelectorAll('#samples img').forEach(i=>i.classList.toggle('on',i===thumb));show(img,title)};
+ img.onerror=()=>{$('det').textContent='Could not load that image.'};img.src=src;
+}
+function upload(f){if(f&&f.type.startsWith('image/'))loadSrc(URL.createObjectURL(f),f.name,null)}
+$('file').onchange=e=>upload(e.target.files[0]);
+const dz=$('drop');
+dz.ondragover=e=>{e.preventDefault();dz.classList.add('drag')};dz.ondragleave=()=>dz.classList.remove('drag');
+dz.ondrop=e=>{e.preventDefault();dz.classList.remove('drag');upload(e.dataTransfer.files[0])};
+$('op').oninput=draw;
+$('save').onclick=()=>{if(!R)return;const a=document.createElement('a');a.download='spacesnap-result.png';a.href=$('cv').toDataURL('image/png');a.click()};
+
+let loaded=0,tried=0,first=true;
+SAMPLES.forEach(s=>{
+ const t=new Image();t.title=s.t;t.alt=s.t;
+ t.onload=()=>{loaded++;tried++;$('samples').appendChild(t);t.onclick=()=>loadSrc(s.f,s.t,t);if(first){first=false;loadSrc(s.f,s.t,t)}done()};
+ t.onerror=()=>{tried++;done()};t.src=s.f;
+});
+function done(){if(tried===SAMPLES.length&&!loaded)$('hint').textContent='No sample images found in the samples/ folder yet. Upload an image to try it.'}
+</script>
+</body>
+</html>
