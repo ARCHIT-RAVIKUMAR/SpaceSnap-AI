@@ -33,10 +33,10 @@ Sample images are in the `samples/` folder and come from NASA (public domain):
 
 | File | Image | Source |
 |---|---|---|
-| `samples/blue-marble.jpeg` | Earth, Blue Marble | NASA Visible Earth (visibleearth.nasa.gov) |
-| `samples/hurricane.jpeg` | Hurricane / storm over ocean | NASA Earth Observatory (earthobservatory.nasa.gov) |
-| `samples/forest.jpeg` | Forest and river | NASA Earth Observatory |
-| `samples/ice.jpeg` | Polar ice | NASA Visible Earth |
+| `samples/blue-marble.jpg` | Earth, Blue Marble | NASA Visible Earth (visibleearth.nasa.gov) |
+| `samples/hurricane.jpg` | Hurricane / storm over ocean | NASA Earth Observatory (earthobservatory.nasa.gov) |
+| `samples/forest.jpg` | Forest and river | NASA Earth Observatory |
+| `samples/ice.jpg` | Polar ice | NASA Visible Earth |
 
 Credit: NASA.
 
