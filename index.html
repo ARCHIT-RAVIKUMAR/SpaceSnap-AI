@@ -94,10 +94,10 @@ const F={
  space:{n:'Dark space / shadow',c:[110,120,150],g:'Very dark areas: space, the night side or deep shadow.'}
 };
 const SAMPLES=[
- {f:'samples/blue-marble.jpeg',t:'Earth (Blue Marble)'},
- {f:'samples/hurricane.jpeg',t:'Hurricane'},
- {f:'samples/forest.jpeg',t:'Forest and river'},
- {f:'samples/ice.jpeg',t:'Polar ice'}
+ {b:'samples/blue-marble',t:'Earth (Blue Marble)'},
+ {b:'samples/hurricane',t:'Hurricane'},
+ {b:'samples/forest',t:'Forest and river'},
+ {b:'samples/ice',t:'Polar ice'}
 ];
 
 function hsv(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0;
@@ -244,9 +244,9 @@ $('save').onclick=()=>{if(!R)return;const a=document.createElement('a');a.downlo
 
 let loaded=0,tried=0,first=true;
 SAMPLES.forEach(s=>{
- const t=new Image();t.title=s.t;t.alt=s.t;
- t.onload=()=>{loaded++;tried++;$('samples').appendChild(t);t.onclick=()=>loadSrc(s.f,s.t,t);if(first){first=false;loadSrc(s.f,s.t,t)}done()};
- t.onerror=()=>{tried++;done()};t.src=s.f;
+ const t=new Image(),ex=['.jpg','.jpeg','.png'];let e=0;t.title=s.t;t.alt=s.t;
+ t.onload=()=>{loaded++;tried++;$('samples').appendChild(t);const src=t.src;t.onclick=()=>loadSrc(src,s.t,t);if(first){first=false;loadSrc(src,s.t,t)}done()};
+ t.onerror=()=>{if(++e<ex.length)t.src=s.b+ex[e];else{tried++;done()}};t.src=s.b+ex[0];
 });
 function done(){if(tried===SAMPLES.length&&!loaded)$('hint').textContent='No sample images found in the samples/ folder yet. Upload an image to try it.'}
 </script>
