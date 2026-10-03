@@ -38,7 +38,7 @@ Sample images are in the `samples/` folder and come from NASA (public domain):
 | `samples/forest.jpeg` | Forest and river | NASA Earth Observatory |
 | `samples/ice.jpeg` | Polar ice | NASA Visible Earth |
 
-Credit: NASA. Add the exact image title and page link for each file here.
+Credit: NASA.
 
 ## Limitations
 
